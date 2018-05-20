@@ -216,10 +216,12 @@ void Telnet_interface::_handle_event_close() {
     // Close sockets
     if (_state == TELNET_INTERFACE_STATE_LISTENING) {
         closesocket(_server_socket);
+        WSACleanup();
         _change_state(TELNET_INTERFACE_STATE_IDLE);
     } else if (_state == TELNET_INTERFACE_STATE_CONNECTED) {
         closesocket(_client_socket);
         closesocket(_server_socket);
+        WSACleanup();
         _change_state(TELNET_INTERFACE_STATE_IDLE);
     }
 }
@@ -228,9 +230,11 @@ void Telnet_interface::_handle_event_shutdown() {
     // Close sockets
     if (_state == TELNET_INTERFACE_STATE_LISTENING) {
         closesocket(_server_socket);
+        WSACleanup();
     } else if (_state == TELNET_INTERFACE_STATE_CONNECTED) {
         closesocket(_client_socket);
         closesocket(_server_socket);
+        WSACleanup();
     }
     _change_state(TELNET_INTERFACE_STATE_SHUTDOWN);
 }
@@ -305,8 +309,7 @@ void Telnet_interface::_run_TELNET_INTERFACE_STATE_LISTENING() {
             _ts3Functions.logMessage("Invalid client socket, closing server socket", LogLevel_INFO, "TestPlugin", 0);
             closesocket(_server_socket);
             WSACleanup();
-        }
-        else {
+        } else {
             _ts3Functions.logMessage("Client socket connected!", LogLevel_INFO, "TestPlugin", 0);
             _change_state(TELNET_INTERFACE_STATE_CONNECTED);
         }
