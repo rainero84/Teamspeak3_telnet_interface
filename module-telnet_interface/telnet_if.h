@@ -176,6 +176,9 @@ private: // Private members
     /// Map of server connections with their assigned id
     typedef std::map<uint64 /*ID*/, Server_connection*> Server_connection_map;
     Server_connection_map _servers;
+
+    /// Currently selected server ID
+    uint64 _active_server_connection;
 };
 
 #endif // _TELNET_IF_H
