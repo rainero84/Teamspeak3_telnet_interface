@@ -99,8 +99,13 @@ private:
     /// Process external events
     void _process_events();
 
+    /// Handles a listen event
     void _handle_event_listen();
+
+    /// Handles a close event
     void _handle_event_close();
+
+    /// Handles a shutdown event
     void _handle_event_shutdown();
 
     /// Changes the current state of the interface
