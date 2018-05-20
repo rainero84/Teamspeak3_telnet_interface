@@ -783,6 +783,8 @@ void ts3plugin_onConnectStatusChangeEvent(uint64 serverConnectionHandlerID, int 
         ts3Functions.freeMemory(ids);
     } else if (newStatus == STATUS_CONNECTION_ESTABLISHING) {
         Telnet_interface::get_instance()->handle_server_connecting(serverConnectionHandlerID);
+    } else if (newStatus == STATUS_DISCONNECTED) {
+        Telnet_interface::get_instance()->handle_server_disconnected(serverConnectionHandlerID);
     }
 }
 
