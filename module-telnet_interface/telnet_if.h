@@ -182,6 +182,9 @@ private: // Private members
 
     /// Currently selected server ID
     uint64 _active_server_connection;
+
+    /// Currently selected channel
+    uint64 _active_server_channel;
 };
 
 #endif // _TELNET_IF_H

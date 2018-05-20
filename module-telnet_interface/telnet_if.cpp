@@ -591,6 +591,7 @@ void Telnet_interface::_parse_buffer() {
             } else if (command_action == "list") {
                 // List managed connections
                 std::ostringstream response;
+                response << "Server connections follow below, selected server indicated with [*]\r\n";
 
                 uint64* ids;
                 uint64 serverConnectionHandlerID = 0;
@@ -632,6 +633,7 @@ void Telnet_interface::_parse_buffer() {
                         for (int i = 0; ids[i]; i++) {
                             if (ids[i] == server_id) {
                                 _active_server_connection = server_id;
+                                _active_server_channel = 0;
                                 found = true;
                                 _queue_write(command + " ok");
                                 break;
@@ -648,6 +650,54 @@ void Telnet_interface::_parse_buffer() {
                 }
 
             }
+        } else if (command_category == "channels") {
+
+            if (command_action == "list") {
+                // List channels on server
+                std::ostringstream response;
+                response << "Channels follow below, selected channel indicated with [*]\r\n";
+
+                uint64* ids;
+                uint64 serverConnectionHandlerID = 0;
+                char* channel_name;
+                if (_ts3Functions.getChannelList(_active_server_connection, &ids) == ERROR_ok) {
+                    for (int i = 0; ids[i]; i++) {
+
+                        if (_evaluate_result(_ts3Functions.getChannelVariableAsString(_active_server_connection, ids[i], CHANNEL_NAME, &channel_name))) {
+
+                            if (_active_server_channel == ids[i]) {
+                                response << "[*] ";
+                            } else {
+                                response << "[ ] ";
+                            }
+                            response << ids[i] << ":";
+                            response << channel_name << "\r\n";
+                            _ts3Functions.freeMemory(channel_name);
+                        }
+                    }
+                    _ts3Functions.freeMemory(ids);
+
+                    _queue_write(response.str());
+                }
+            } else if (command_action == "select") {
+                uint64 channel_id;
+                line_parser >> channel_id;
+
+                std::string password;
+                line_parser >> password;
+
+                anyID myid;
+                if (_evaluate_result(_ts3Functions.getClientID(_active_server_connection, &myid))) {  // Determine own ID
+                    if (_evaluate_result(_ts3Functions.requestClientMove(_active_server_connection, myid, channel_id, password.c_str(), NULL))) {
+                        _active_server_channel = channel_id;
+                        _queue_write(command + " ok");
+                    } else {
+                        _queue_write(command + " ok");
+                    }
+                } else {
+                    _queue_write(command + " ok");
+                }
+            }
         } else if (command_category == "messaging") {
             _ts3Functions.logMessage("Found messages command", LogLevel_DEBUG, "TestPlugin", 0);
 
@@ -655,7 +705,7 @@ void Telnet_interface::_parse_buffer() {
                 std::string message;
                 std::getline(line_parser, message);
 
-                if (_evaluate_result(_ts3Functions.requestSendChannelTextMsg(_active_server_connection, message.c_str(), 0, NULL))) {
+                if (_evaluate_result(_ts3Functions.requestSendChannelTextMsg(_active_server_connection, message.c_str(), _active_server_channel, NULL))) {
                     _queue_write(command + " ok");
                 } else {
                     _queue_write(command + " fail");

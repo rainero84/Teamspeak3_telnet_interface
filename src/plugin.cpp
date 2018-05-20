@@ -101,14 +101,14 @@ const char* ts3plugin_name() {
 	/* TeamSpeak expects UTF-8 encoded characters. Following demonstrates a possibility how to convert UTF-16 wchar_t into UTF-8. */
 	static char* result = NULL;  /* Static variable so it's allocated only once */
 	if(!result) {
-		const wchar_t* name = L"Rainer Upwork Plugin";
+		const wchar_t* name = L"Telnet Plugin";
 		if(wcharToUtf8(name, &result) == -1) {  /* Convert name into UTF-8 encoded result */
-			result = "Rainer Upwork Plugin";  /* Conversion failed, fallback here */
+			result = "Telnet Plugin";  /* Conversion failed, fallback here */
 		}
 	}
 	return result;
 #else
-	return "Rainer Upwork Plugin";
+	return "Telnet Plugin";
 #endif
 }
 
@@ -511,7 +511,7 @@ void ts3plugin_currentServerConnectionChanged(uint64 serverConnectionHandlerID) 
 
 /* Static title shown in the left column in the info frame */
 const char* ts3plugin_infoTitle() {
-	return "Rainer Upwork Plugin info";
+	return "Telnet Plugin info";
 }
 
 /*
