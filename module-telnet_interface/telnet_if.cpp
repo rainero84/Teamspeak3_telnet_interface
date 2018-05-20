@@ -42,47 +42,32 @@ void Telnet_interface::destroy_instance() {
 //-----------------------------------------------------------------------------
 // Handle connection to server established
 void Telnet_interface::handle_server_connected(uint64 server_connection_id) {
-    Server_connection_map::iterator iter = _servers.find(server_connection_id);
-    if (iter != _servers.end()) {
-        std::stringstream client_message;
-        client_message << "Server " << server_connection_id << " connected (" << iter->second->get_hostname() << ")";
-        _queue_write(client_message.str());
 
-        // Notify Client
-        std::ostringstream client_info_msg;
-        client_info_msg << "ts3.info Server " << server_connection_id << " connected";
-        _queue_write(client_info_msg.str());
 
-        iter->second->handle_connection_established();
-    }
+    // Notify Client
+    std::ostringstream client_info_msg;
+    client_info_msg << "ts3.info Server " << server_connection_id << " connected";
+    _queue_write(client_info_msg.str());
+
 }
 
 //-----------------------------------------------------------------------------
 // Handle connection to server established
 void Telnet_interface::handle_server_connecting(uint64 server_connection_id) {
-    Server_connection_map::iterator iter = _servers.find(server_connection_id);
-    if (iter != _servers.end()) {
-        // Notify Client
-        std::ostringstream client_info_msg;
-        client_info_msg << "ts3.info Server " << server_connection_id << " connecting";
-        _queue_write(client_info_msg.str());
 
-        iter->second->handle_connect_started();
-    }
+    // Notify Client
+    std::ostringstream client_info_msg;
+    client_info_msg << "ts3.info Server " << server_connection_id << " connecting";
+    _queue_write(client_info_msg.str());
 }
 
 //-----------------------------------------------------------------------------
 // Handle connection to server terminated
 void Telnet_interface::handle_server_disconnected(uint64 server_connection_id) {
-    Server_connection_map::iterator iter = _servers.find(server_connection_id);
-    if (iter != _servers.end()) {
-        // Notify Client
-        std::ostringstream client_info_msg;
-        client_info_msg << "ts3.info Server " << server_connection_id << " disconnected";
-        _queue_write(client_info_msg.str());
-
-        iter->second->handle_connection_closed();
-    }
+    // Notify Client
+    std::ostringstream client_info_msg;
+    client_info_msg << "ts3.info Server " << server_connection_id << " disconnected";
+    _queue_write(client_info_msg.str());
 }
 
 //-----------------------------------------------------------------------------
@@ -98,11 +83,6 @@ Telnet_interface::Telnet_interface(const struct TS3Functions funcs) {
 //-----------------------------------------------------------------------------
 /// Destructor
 Telnet_interface::~Telnet_interface() {
-    // Delete server instances
-    while (!_servers.empty()) {
-        delete _servers.begin()->second;
-        _servers.erase(_servers.begin());
-    }
 
     // Close sockets
 	if (_state == TELNET_INTERFACE_STATE_LISTENING) {
@@ -485,10 +465,22 @@ void Telnet_interface::_parse_buffer() {
                 line_parser >> nickname;
                 valid &= !nickname.empty();
 
+                std::string captureProfile;
+                line_parser >> captureProfile;
+                if (captureProfile.empty()) {
+                    captureProfile = "Default";
+                }
+
+                std::string playbackProfile;
+                line_parser >> playbackProfile;
+                if (playbackProfile.empty()) {
+                    playbackProfile = "Default";
+                }
+
                 std::string sound_profile;
                 line_parser >> sound_profile;
                 if (sound_profile.empty()) {
-                    sound_profile = "Default";
+                    sound_profile = "Default Sound Profile (Female)";
                 }
 
                 std::string server_password;
@@ -507,8 +499,8 @@ void Telnet_interface::_parse_buffer() {
                         nickname.c_str(),        // nickname
                         "",                      // channel
                         "",                      // channelPassword
-                        "Default",               // captureProfile
-                        "Default",               // playbackProfile
+                        captureProfile.c_str(),  // captureProfile
+                        playbackProfile.c_str(), // playbackProfile
                         "Default",               // hotkeyProfile
                         sound_profile.c_str(),   // soundProfile
                         "",                      // userIdentity
@@ -516,12 +508,8 @@ void Telnet_interface::_parse_buffer() {
                         "",                      // phoneticName
                         &new_server_connection_handler_id
                         );
+
                     if (_evaluate_result(connect_result)) {
-                        // Delete any existing connections
-                        if (_servers.find(new_server_connection_handler_id) != _servers.end()) {
-                            delete _servers[new_server_connection_handler_id];
-                        }
-                        _servers[new_server_connection_handler_id] = new Server_connection(new_server_connection_handler_id, _ts3Functions, host);
                         _queue_write(command + " ok");
 
                         std::ostringstream client_info_msg;
@@ -536,45 +524,88 @@ void Telnet_interface::_parse_buffer() {
 
             } else if (command_action == "disconnect") {
                 // Disconnect active server connection
-                uint64 server_id;
-                line_parser >> server_id;
+                std::string server_id_str;
+                line_parser >> server_id_str;
 
-                if (_servers.find(server_id) != _servers.end()) {
-                    _ts3Functions.stopConnection(server_id, "Bye");
-                    _queue_write(command + " ok");
-                } else {
+                uint64 server_id = _active_server_connection;
+                if (!server_id_str.empty()) {
+                    server_id = atoi(server_id_str.c_str());
+                }
+
+                uint64* ids;
+                uint64 serverConnectionHandlerID = 0;
+                bool found = false;
+                if (_ts3Functions.getServerConnectionHandlerList(&ids) == ERROR_ok) {
+                    for (int i = 0; ids[i]; i++) {
+                        if (ids[i] == server_id) {
+                            _ts3Functions.stopConnection(server_id, "Bye");
+                            _queue_write(command + " ok");
+                            found = true;
+                            break;
+                        }
+                    }
+                    _ts3Functions.freeMemory(ids);
+                }
+
+                if (!found) {
                     _queue_write(command + " fail. Unknown connection ID");
                 }
 
             } else if (command_action == "list") {
                 // List managed connections
                 std::ostringstream response;
-                response << _servers.size() << " connections available\r\n";
-                for (Server_connection_map::iterator iter = _servers.begin(); iter != _servers.end(); iter++) {
-                    if (_active_server_connection == iter->first) {
-                        response << "* ";
-                    } else {
-                        response << "  ";
+
+                uint64* ids;
+                uint64 serverConnectionHandlerID = 0;
+                char* server_name;
+                if (_ts3Functions.getServerConnectionHandlerList(&ids) == ERROR_ok) {
+                    for (int i = 0; ids[i]; i++) {
+
+                        if (_evaluate_result(_ts3Functions.getServerVariableAsString(ids[i], VIRTUALSERVER_NAME, &server_name))) {
+
+                            if (_active_server_connection == ids[i]) {
+                                response << "[*] ";
+                            } else {
+                                response << "[ ] ";
+                            }
+                            response << ids[i] << ":";
+                            response << server_name << "\r\n";
+                            _ts3Functions.freeMemory(server_name);
+                        }
                     }
-                    response << iter->first << " " << iter->second->get_hostname() << " ";
-                    switch (iter->second->get_state()) {
-                    case SERVER_STATE_NOT_CONNECTED: "[NOT CONNECTED]"; break;
-                    case SERVER_STATE_CONNECTING:    "[CONNECTING]"; break;
-                    case SERVER_STATE_CONNECTED:     "[CONNECTED]"; break;
-                    default:                         "[UNKNOWN]"; break;
-                    }
+                    _ts3Functions.freeMemory(ids);
+
+                    _queue_write(response.str());
                 }
-                _queue_write(response.str());
+                
 
             } else if (command_action == "select") {
-                uint64 server_id;
-                line_parser >> server_id;
+                // Disconnect active server connection
+                std::string server_id_str;
+                line_parser >> server_id_str;
 
-                if (_servers.find(server_id) != _servers.end()) {
-                    _active_server_connection = server_id;
-                    _queue_write(command + " ok");
-                } else {
-                    _queue_write(command + " fail");
+                uint64 server_id = _active_server_connection;
+                if (!server_id_str.empty()) {
+                    server_id = atoi(server_id_str.c_str());
+                }
+
+                uint64* ids;
+                uint64 serverConnectionHandlerID = 0;
+                bool found = false;
+                if (_ts3Functions.getServerConnectionHandlerList(&ids) == ERROR_ok) {
+                    for (int i = 0; ids[i]; i++) {
+                        if (ids[i] == server_id) {
+                            _active_server_connection = server_id;
+                            found = true;
+                            _queue_write(command + " ok");
+                            break;
+                        }
+                    }
+                    _ts3Functions.freeMemory(ids);
+                }
+
+                if (!found) {
+                    _queue_write(command + " fail. Unknown connection ID");
                 }
 
             }

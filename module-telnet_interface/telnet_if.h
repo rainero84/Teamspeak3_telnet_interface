@@ -166,17 +166,6 @@ private: // Private members
     /// Stream holding data to write
     std::stringstream _write_stream;
 
-
-    // Server Connection Handler ID used for various function calls
-    uint64 _serverConnectionHandlerID;
-
-    /// Map of users with their assigned id
-    std::map<uint64 /*ID*/, std::string> _users;
-
-    /// Map of server connections with their assigned id
-    typedef std::map<uint64 /*ID*/, Server_connection*> Server_connection_map;
-    Server_connection_map _servers;
-
     /// Currently selected server ID
     uint64 _active_server_connection;
 };

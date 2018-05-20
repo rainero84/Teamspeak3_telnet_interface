@@ -82,7 +82,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\module-telnet_interface\server_connection.cpp" />
     <ClCompile Include="..\module-telnet_interface\telnet_if.cpp" />
     <ClCompile Include="plugin.cpp" />
   </ItemGroup>
@@ -95,7 +94,6 @@
     <ClInclude Include="..\include\teamspeak\public_errors_rare.h" />
     <ClInclude Include="..\include\teamspeak\public_rare_definitions.h" />
     <ClInclude Include="..\include\ts3_functions.h" />
-    <ClInclude Include="..\module-telnet_interface\server_connection.h" />
     <ClInclude Include="..\module-telnet_interface\telnet_if.h" />
     <ClInclude Include="plugin.h" />
   </ItemGroup>
