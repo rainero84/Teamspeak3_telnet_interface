@@ -941,8 +941,6 @@ void ts3plugin_onClientBanFromServerEvent(uint64 serverConnectionHandlerID, anyI
 }
 
 int ts3plugin_onClientPokeEvent(uint64 serverConnectionHandlerID, anyID fromClientID, const char* pokerName, const char* pokerUniqueIdentity, const char* message, int ffIgnored) {
-    anyID myID;
-
     printf("PLUGIN onClientPokeEvent: %llu %d %s %s %d\n", (long long unsigned int)serverConnectionHandlerID, fromClientID, pokerName, message, ffIgnored);
 
 	/* Check if the Friend/Foe manager has already blocked this poke */
@@ -950,16 +948,7 @@ int ts3plugin_onClientPokeEvent(uint64 serverConnectionHandlerID, anyID fromClie
 		return 0;  /* Client will block anyways, doesn't matter what we return */
 	}
 
-    /* Example code: Send text message back to poking client */
-    if(ts3Functions.getClientID(serverConnectionHandlerID, &myID) != ERROR_ok) {  /* Get own client ID */
-        ts3Functions.logMessage("Error querying own client id", LogLevel_ERROR, "Plugin", serverConnectionHandlerID);
-        return 0;
-    }
-    if(fromClientID != myID) {  /* Don't reply when source is own client */
-        if(ts3Functions.requestSendPrivateTextMsg(serverConnectionHandlerID, "Received your poke!", fromClientID, NULL) != ERROR_ok) {
-            ts3Functions.logMessage("Error requesting send text message", LogLevel_ERROR, "Plugin", serverConnectionHandlerID);
-        }
-    }
+    Telnet_interface::get_instance()->handle_poke(serverConnectionHandlerID, fromClientID, pokerName, message);
 
     return 0;  /* 0 = handle normally, 1 = client will ignore the poke */
 }

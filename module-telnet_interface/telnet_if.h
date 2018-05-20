@@ -1,8 +1,12 @@
+/*
+* Filenme: telnet_if.h
+* Purpose: Defines the Telnet_interface class functions and members
+* Copyright Rainer Oellermann 2018
+*/
 #ifndef _TELNET_IF_H_
 #define _TELNET_IF_H_
 
 #include <WinSock2.h>
-
 #include <sstream>
 #include <map>
 #include <list>
@@ -54,6 +58,9 @@ public:
 
     /// Handles received channel text message
     void handle_channel_text_message(uint64 server_connection_id, uint64 fromID, const char* from_name, const char* message);
+
+    /// Handles received poke
+    void handle_poke(uint64 server_connection_id, uint64 fromID, const char* from_name, const char* message);
 
 private:
 	// Constrcutor and destructor are private to ensure only a single
