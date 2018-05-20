@@ -50,7 +50,10 @@
     <ClInclude Include="..\include\plugin_definitions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="module-telnet_interface\telnet_if.h">
+    <ClInclude Include="..\module-telnet_interface\server_connection.h">
+      <Filter>Header Files\module-telnet_interface</Filter>
+    </ClInclude>
+    <ClInclude Include="..\module-telnet_interface\telnet_if.h">
       <Filter>Header Files\module-telnet_interface</Filter>
     </ClInclude>
   </ItemGroup>
@@ -58,7 +61,10 @@
     <ClCompile Include="plugin.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="module-telnet_interface\telnet_if.cpp">
+    <ClCompile Include="..\module-telnet_interface\server_connection.cpp">
+      <Filter>Source Files\module-telnet_interface</Filter>
+    </ClCompile>
+    <ClCompile Include="..\module-telnet_interface\telnet_if.cpp">
       <Filter>Source Files\module-telnet_interface</Filter>
     </ClCompile>
   </ItemGroup>

@@ -63,16 +63,27 @@ static int wcharToUtf8(const wchar_t* str, char** result) {
 DWORD dw_thread_id;
 HANDLE h_thread_handle;
 DWORD WINAPI telnet_interface_run_thread(LPVOID lpParam) {
+    // 1. Create instance of the Telnet Interface
+    Telnet_interface* telnet_if = Telnet_interface::create_instance(ts3Functions);
+
+    // Queue listen event
+    telnet_if->event_listen();
+
     while (true) {
         //ts3Functions.logMessage("Running...", LogLevel_DEBUG, "", 0);
         if (Telnet_interface::get_instance() == nullptr) {
             break;
-        }
-        else {
+        } else {
             Telnet_interface::get_instance()->execute();
-            Sleep(100); // Execute every 100ms
+            if (!Telnet_interface::get_instance()->execution_complete()) {
+                Sleep(100); // Execute every 100ms
+            } else {
+                break;
+            }
         }
     }
+
+    Telnet_interface::destroy_instance();
     ts3Functions.logMessage("Thread exited", LogLevel_DEBUG, "", 0);
     return 0;
 }
@@ -154,44 +165,20 @@ int ts3plugin_init() {
 
     bool success = true;
 
-    // 1. Create instance of the Telnet Interface
-    Telnet_interface* telnet_if = Telnet_interface::create_instance(ts3Functions);
+    // Spawn thread for running the telnet interface
+    h_thread_handle = CreateThread(NULL, 0, &telnet_interface_run_thread, NULL, 0, &dw_thread_id);
 
-    // 2. Create listening socket
-    if (telnet_if->listen()) {
+    ts3Functions.logMessage("Test Plugin Initialised", LogLevel_DEBUG, "", 0);
 
-        // 3. Spawn thread for running the telnet interface
-        h_thread_handle = CreateThread(NULL, 0, &telnet_interface_run_thread, NULL, 0, &dw_thread_id);
-    }
-    else {
-        ts3Functions.logMessage("Could not listen", LogLevel_WARNING, "", 0);
-        success = false;
-    }
-
-    if (success) {
-        ts3Functions.logMessage("Initialised", LogLevel_DEBUG, "", 0);
-
-        return 0;  /* 0 = success, 1 = failure, -2 = failure but client will not show a "failed to load" warning */
-        /* -2 is a very special case and should only be used if a plugin displays a dialog (e.g. overlay) asking the user to disable
-         * the plugin again, avoiding the show another dialog by the client telling the user the plugin failed to load.
-         * For normal case, if a plugin really failed to load because of an error, the correct return value is 1. */
-    }
-    else {
-
-        ts3Functions.logMessage("Failed to initialise", LogLevel_WARNING, "", 0);
-
-        return 1;  /* 0 = success, 1 = failure, -2 = failure but client will not show a "failed to load" warning */
-        /* -2 is a very special case and should only be used if a plugin displays a dialog (e.g. overlay) asking the user to disable
+    return 0;  /* 0 = success, 1 = failure, -2 = failure but client will not show a "failed to load" warning */
+    /* -2 is a very special case and should only be used if a plugin displays a dialog (e.g. overlay) asking the user to disable
         * the plugin again, avoiding the show another dialog by the client telling the user the plugin failed to load.
         * For normal case, if a plugin really failed to load because of an error, the correct return value is 1. */
-    }
 }
 
 /* Custom code called right before the plugin is unloaded */
 void ts3plugin_shutdown() {
-    /* Your plugin cleanup code here */
-    
-    Telnet_interface::destroy_instance();
+    Telnet_interface::get_instance()->event_shutdown();
 
     // Wait for thread to exit
     WaitForSingleObject(h_thread_handle, INFINITE);
@@ -607,8 +594,8 @@ enum {
 	MENU_ID_CHANNEL_1,
 	MENU_ID_CHANNEL_2,
 	MENU_ID_CHANNEL_3,
-	MENU_ID_GLOBAL_1,
-	MENU_ID_GLOBAL_2
+	MENU_ID_GLOBAL_LISTEN,
+	MENU_ID_GLOBAL_CLOSE
 };
 
 /*
@@ -635,14 +622,14 @@ void ts3plugin_initMenus(struct PluginMenuItem*** menuItems, char** menuIcon) {
 	 * e.g. for "test_plugin.dll", icon "1.png" is loaded from <TeamSpeak 3 Client install dir>\plugins\test_plugin\1.png
 	 */
 
-	BEGIN_CREATE_MENUS(7);  /* IMPORTANT: Number of menu items must be correct! */
-	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CLIENT,  MENU_ID_CLIENT_1,  "Client item 1",  "1.png");
-	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CLIENT,  MENU_ID_CLIENT_2,  "Client item 2",  "2.png");
-	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CHANNEL, MENU_ID_CHANNEL_1, "Channel item 1", "1.png");
-	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CHANNEL, MENU_ID_CHANNEL_2, "Channel item 2", "2.png");
-	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CHANNEL, MENU_ID_CHANNEL_3, "Channel item 3", "3.png");
-	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_GLOBAL,  MENU_ID_GLOBAL_1,  "Global item 1",  "1.png");
-	CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_GLOBAL,  MENU_ID_GLOBAL_2,  "Global item 2",  "2.png");
+	BEGIN_CREATE_MENUS(2);  /* IMPORTANT: Number of menu items must be correct! */
+	//CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CLIENT,  MENU_ID_CLIENT_1,  "Client item 1",  "1.png");
+	//CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CLIENT,  MENU_ID_CLIENT_2,  "Client item 2",  "2.png");
+	//CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CHANNEL, MENU_ID_CHANNEL_1, "Channel item 1", "1.png");
+	//CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CHANNEL, MENU_ID_CHANNEL_2, "Channel item 2", "2.png");
+	//CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_CHANNEL, MENU_ID_CHANNEL_3, "Channel item 3", "3.png");
+    CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_GLOBAL, MENU_ID_GLOBAL_LISTEN, "Start Telnet Server", "1.png");
+    CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_GLOBAL, MENU_ID_GLOBAL_CLOSE, "Stop Telnet Server", "2.png");
 	END_CREATE_MENUS;  /* Includes an assert checking if the number of menu items matched */
 
 	/*
@@ -708,6 +695,8 @@ void ts3plugin_onConnectStatusChangeEvent(uint64 serverConnectionHandlerID, int 
     /* Some example code following to show how to use the information query functions. */
 
     if(newStatus == STATUS_CONNECTION_ESTABLISHED) {  /* connection established and we have client and channels available */
+        Telnet_interface::get_instance()->handle_server_connected(serverConnectionHandlerID);
+
         char* s;
         char msg[1024];
         anyID myID;
@@ -792,6 +781,8 @@ void ts3plugin_onConnectStatusChangeEvent(uint64 serverConnectionHandlerID, int 
             ts3Functions.freeMemory(s);
         }
         ts3Functions.freeMemory(ids);
+    } else if (newStatus == STATUS_CONNECTION_ESTABLISHING) {
+        Telnet_interface::get_instance()->handle_server_connecting(serverConnectionHandlerID);
     }
 }
 
@@ -832,6 +823,7 @@ void ts3plugin_onClientKickFromChannelEvent(uint64 serverConnectionHandlerID, an
 }
 
 void ts3plugin_onClientKickFromServerEvent(uint64 serverConnectionHandlerID, anyID clientID, uint64 oldChannelID, uint64 newChannelID, int visibility, anyID kickerID, const char* kickerName, const char* kickerUniqueIdentifier, const char* kickMessage) {
+    Telnet_interface::get_instance()->handle_server_disconnected(serverConnectionHandlerID);
 }
 
 void ts3plugin_onClientIDsEvent(uint64 serverConnectionHandlerID, const char* uniqueClientIdentifier, anyID clientID, const char* clientName) {
@@ -1157,11 +1149,11 @@ void ts3plugin_onMenuItemEvent(uint64 serverConnectionHandlerID, enum PluginMenu
 		case PLUGIN_MENU_TYPE_GLOBAL:
 			/* Global menu item was triggered. selectedItemID is unused and set to zero. */
 			switch(menuItemID) {
-				case MENU_ID_GLOBAL_1:
-					/* Menu global 1 was triggered */
+				case MENU_ID_GLOBAL_LISTEN:
+                    Telnet_interface::get_instance()->event_listen();
 					break;
-				case MENU_ID_GLOBAL_2:
-					/* Menu global 2 was triggered */
+				case MENU_ID_GLOBAL_CLOSE:
+                    Telnet_interface::get_instance()->event_close();
 					break;
 				default:
 					break;

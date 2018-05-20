@@ -5,14 +5,24 @@
 
 #include <sstream>
 #include <map>
+#include <list>
 
 #include "ts3_functions.h"
+#include "module-telnet_interface/server_connection.h"
 
 /// States of the interface
 enum Telnet_interface_state {
 	TELNET_INTERFACE_STATE_IDLE,
 	TELNET_INTERFACE_STATE_LISTENING,
-	TELNET_INTERFACE_STATE_CONNECTED
+	TELNET_INTERFACE_STATE_CONNECTED,
+    TELNET_INTERFACE_STATE_SHUTDOWN
+};
+
+/// A list of events generated extrenally
+enum External_plugin_events {
+    EXTERNAL_PLUGIN_EVENTS_LISTEN,
+    EXTERNAL_PLUGIN_EVENTS_CLOSE,
+    EXTERNAL_PLUGIN_EVENTS_SHUTDOWN
 };
 
 class Telnet_interface {
@@ -24,13 +34,19 @@ public:
 
     /// Returns the instance
     static Telnet_interface* get_instance();
-
-    /// Sets the TS3 functions
-    //void set_ts3_functions(struct TS3Functions * ts3Functions);
 	
 	/// Destroys the interface
 	static void destroy_instance();
 	//-------------------------------------------------------------------------
+
+    /// Handle connection to server established
+    void handle_server_connected(uint64 server_connection_id);
+
+    /// Handles connection to the server being established
+    void handle_server_connecting(uint64 server_connection_id);
+    
+    // Handle connection to server terminated
+    void handle_server_disconnected(uint64 server_connection_id);
 
 private:
 	// Constrcutor and destructor are private to ensure only a single
@@ -51,12 +67,28 @@ private:
 
 public:
 	/// Starts the server
-	bool listen();
+	void event_listen();
+
+    /// Closes the client and server connections
+    void event_close();
+
+    /// Closes all connections and gets ready to terminate
+    void event_shutdown();
 
 	/// Executes the thread
 	void execute();
 
+    /// Determines if the interface is shut down
+    bool execution_complete();
+
 private:
+    /// Process external events
+    void _process_events();
+
+    void _handle_event_listen();
+    void _handle_event_close();
+    void _handle_event_shutdown();
+
     /// Changes the current state of the interface
     void _change_state(Telnet_interface_state _state);
 
@@ -70,6 +102,10 @@ private:
     /// Enters the CONNECTED state
     void _on_enter_TELNET_INTERFACE_STATE_CONNECTED();
 
+    /// Enters the SHUTDOWN state
+    void _on_enter_TELNET_INTERFACE_STATE_SHUTDOWN();
+
+
     /// Runs the IDLE state
     void _run_TELNET_INTERFACE_STATE_IDLE();
 
@@ -78,6 +114,9 @@ private:
 
     /// Runs the CONNECTED state
     void _run_TELNET_INTERFACE_STATE_CONNECTED();
+
+    /// Runs the SHUTDOWN state
+    void _run_TELNET_INTERFACE_STATE_SHUTDOWN();
 
 
     /// Exits the IDLE state
@@ -88,6 +127,13 @@ private:
 
     /// Exits the CONNECTED state
     void _on_exit_TELNET_INTERFACE_STATE_CONNECTED();
+
+    /// Exits the SHUTDOWN state
+    void _on_exit_TELNET_INTERFACE_STATE_SHUTDOWN();
+
+
+    /// Sends a list of supported command to the client
+    void _send_usage_to_client();
 
 
     /// Parses the content of the received buffer
@@ -104,6 +150,9 @@ private: // Private members
 
 	/// State of the interface
 	Telnet_interface_state _state;
+
+    /// Holds a list of externally generated events
+    std::list<External_plugin_events> _pending_external_events;
 
 	/// Handle of the server socket
 	SOCKET _server_socket;
@@ -125,7 +174,8 @@ private: // Private members
     std::map<uint64 /*ID*/, std::string> _users;
 
     /// Map of server connections with their assigned id
-    std::map<uint64 /*ID*/, std::string> _servers;
+    typedef std::map<uint64 /*ID*/, Server_connection*> Server_connection_map;
+    Server_connection_map _servers;
 };
 
 #endif // _TELNET_IF_H
