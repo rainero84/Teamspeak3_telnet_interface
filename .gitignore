@@ -1,0 +1,4 @@
+src/Debug/*
+src/Release/*
+src/test_plugin.v12.suo
+src/test_plugin.sdf
