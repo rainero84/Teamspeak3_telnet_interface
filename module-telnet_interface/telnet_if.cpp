@@ -436,9 +436,18 @@ void Telnet_interface::_on_exit_TELNET_INTERFACE_STATE_SHUTDOWN() {
 //-----------------------------------------------------------------------------
 /// Sends a list of supported command to the client
 void Telnet_interface::_send_usage_to_client() {
-    _queue_write("The TeamSpeak3 interface supports the following commands:");
-    _queue_write("ts3.server");
-    _queue_write("ts3.messaging");
+    _queue_write("The TeamSpeak3 Telnet interface supports the following commands:");
+    _queue_write("ts3.servers.connect <hostname> <identity> <nickname> <*capture_profile> <*playback_profile> <*sound_profile>");
+    _queue_write("ts3.servers.disconnect <*server_id>");
+    _queue_write("ts3.servers.list");
+    _queue_write("ts3.servers.select <server_id>");
+    _queue_write("ts3.channels.list");
+    _queue_write("ts3.channels.select <channel_id> <password>");
+    _queue_write("ts3.users.list");
+    _queue_write("ts3.messaging.send_private <user_id> <message>");
+    _queue_write("ts3.messaging.send_channel <message>");
+    _queue_write("ts3.messaging.send_poke <user_id> <message>");
+    _queue_write("Optional parameters are marked with *");
 }
 
 //-----------------------------------------------------------------------------
@@ -476,9 +485,11 @@ void Telnet_interface::_parse_buffer() {
             _ts3Functions.logMessage("Found identifier command", LogLevel_DEBUG, "TestPlugin", 0);
 
             if (command_action == "add") {
-                _queue_write(command + " not available, as API does not support identity management");
+                _queue_write(command + " fail. Not available, as API does not support identity management");
             } else if (command_action == "remove") {
-                _queue_write(command + " not available, as API does not support identity management");
+                _queue_write(command + " fail. Not available, as API does not support identity management");
+            } else {
+                _queue_write(command + " is not a supported action");
             }
 
         }
@@ -525,6 +536,8 @@ void Telnet_interface::_parse_buffer() {
                 
 
                 if (valid) {
+                    _ts3Functions.logMessage("Connecting...", LogLevel_DEBUG, "TestPlugin", 0);
+
                     uint64 new_server_connection_handler_id = 0;
 
                     // Start connection
@@ -556,6 +569,7 @@ void Telnet_interface::_parse_buffer() {
                         _queue_write(command + " fail");
                     }
                 } else {
+                    _ts3Functions.logMessage("servers.connect command is not valid", LogLevel_INFO, "TestPlugin", 0);
                     _queue_write(command + " fail");
                 }
 
@@ -575,6 +589,7 @@ void Telnet_interface::_parse_buffer() {
                 if (_ts3Functions.getServerConnectionHandlerList(&ids) == ERROR_ok) {
                     for (int i = 0; ids[i]; i++) {
                         if (ids[i] == server_id) {
+                            _ts3Functions.logMessage("Disconnecting...", LogLevel_DEBUG, "TestPlugin", 0);
                             _ts3Functions.stopConnection(server_id, "Bye");
                             _queue_write(command + " ok");
                             found = true;
@@ -585,13 +600,14 @@ void Telnet_interface::_parse_buffer() {
                 }
 
                 if (!found) {
+                    _ts3Functions.logMessage("servers.disconnect does not name a valid server", LogLevel_INFO, "TestPlugin", 0);
                     _queue_write(command + " fail. Unknown connection ID");
                 }
 
             } else if (command_action == "list") {
                 // List managed connections
                 std::ostringstream response;
-                response << "Server connections follow below, selected server indicated with [*]\r\n";
+                response << command << " Server connections follow below, selected server indicated with [*]\r\n";
 
                 uint64* ids;
                 uint64 serverConnectionHandlerID = 0;
@@ -606,7 +622,7 @@ void Telnet_interface::_parse_buffer() {
                             } else {
                                 response << "[ ] ";
                             }
-                            response << ids[i] << ":";
+                            response << ids[i] << ": ";
                             response << server_name << "\r\n";
                             _ts3Functions.freeMemory(server_name);
                         }
@@ -632,6 +648,7 @@ void Telnet_interface::_parse_buffer() {
                     if (_ts3Functions.getServerConnectionHandlerList(&ids) == ERROR_ok) {
                         for (int i = 0; ids[i]; i++) {
                             if (ids[i] == server_id) {
+                                _ts3Functions.logMessage("Selecting server", LogLevel_DEBUG, "TestPlugin", 0);
                                 _active_server_connection = server_id;
                                 _active_server_channel = 0;
                                 found = true;
@@ -643,19 +660,23 @@ void Telnet_interface::_parse_buffer() {
                     }
 
                     if (!found) {
+                        _ts3Functions.logMessage("Could not select server, invalid ID specified", LogLevel_INFO, "TestPlugin", 0);
                         _queue_write(command + " fail. Unknown connection ID.");
                     }
                 } else {
+                    _ts3Functions.logMessage("Could not select server, no ID specified", LogLevel_INFO, "TestPlugin", 0);
                     _queue_write(command + " fail. ID not specified.");
                 }
 
+            } else {
+                _queue_write(command + " is not a supported action");
             }
         } else if (command_category == "channels") {
 
             if (command_action == "list") {
                 // List channels on server
                 std::ostringstream response;
-                response << "Channels follow below, selected channel indicated with [*]\r\n";
+                response << command << " Channels follow below, selected channel indicated with [*]\r\n";
 
                 uint64* ids;
                 uint64 serverConnectionHandlerID = 0;
@@ -670,7 +691,7 @@ void Telnet_interface::_parse_buffer() {
                             } else {
                                 response << "[ ] ";
                             }
-                            response << ids[i] << ":";
+                            response << ids[i] << ": ";
                             response << channel_name << "\r\n";
                             _ts3Functions.freeMemory(channel_name);
                         }
@@ -680,23 +701,62 @@ void Telnet_interface::_parse_buffer() {
                     _queue_write(response.str());
                 }
             } else if (command_action == "select") {
-                uint64 channel_id;
-                line_parser >> channel_id;
+                std::string channel_id_str;
+                line_parser >> channel_id_str;
 
-                std::string password;
-                line_parser >> password;
+                if (!channel_id_str.empty()) {
 
-                anyID myid;
-                if (_evaluate_result(_ts3Functions.getClientID(_active_server_connection, &myid))) {  // Determine own ID
-                    if (_evaluate_result(_ts3Functions.requestClientMove(_active_server_connection, myid, channel_id, password.c_str(), NULL))) {
-                        _active_server_channel = channel_id;
-                        _queue_write(command + " ok");
+                    uint64 channel_id = atoll(channel_id_str.c_str());
+
+                    std::string password;
+                    line_parser >> password;
+
+                    anyID myid;
+                    if (_evaluate_result(_ts3Functions.getClientID(_active_server_connection, &myid))) {  // Determine own ID
+                        if (_evaluate_result(_ts3Functions.requestClientMove(_active_server_connection, myid, channel_id, password.c_str(), NULL))) {
+                            _ts3Functions.logMessage("Channel selected", LogLevel_DEBUG, "TestPlugin", 0);
+                            _active_server_channel = channel_id;
+                            _queue_write(command + " ok");
+                        } else {
+                            _ts3Functions.logMessage("Could not select channel", LogLevel_INFO, "TestPlugin", 0);
+                            _queue_write(command + " fail");
+                        }
                     } else {
-                        _queue_write(command + " ok");
+                        _ts3Functions.logMessage("Could not select channel", LogLevel_INFO, "TestPlugin", 0);
+                        _queue_write(command + " fail. Could not select");
                     }
                 } else {
-                    _queue_write(command + " ok");
+                    _ts3Functions.logMessage("Could not select channel, no ID specified", LogLevel_INFO, "TestPlugin", 0);
+                    _queue_write(command + " fail. No channel specified");
                 }
+            } else {
+                _queue_write(command + " is not a supported action");
+            }
+        } else if (command_category == "users") {
+
+            if (command_action == "list") {
+                // List channels on server
+                std::ostringstream response;
+                response << command << " Users follow below\r\n";
+
+                anyID* ids;
+                uint64 serverConnectionHandlerID = 0;
+                char* user_name;
+                if (_ts3Functions.getClientList(_active_server_connection, &ids) == ERROR_ok) {
+                    for (int i = 0; ids[i]; i++) {
+
+                        if (_evaluate_result(_ts3Functions.getClientVariableAsString(_active_server_connection, ids[i], CLIENT_NICKNAME, &user_name))) {
+                            response << ids[i] << ": ";
+                            response << user_name << "\r\n";
+                            _ts3Functions.freeMemory(user_name);
+                        }
+                    }
+                    _ts3Functions.freeMemory(ids);
+
+                    _queue_write(response.str());
+                }
+            } else {
+                _queue_write(command + " is not a supported action");
             }
         } else if (command_category == "messaging") {
             _ts3Functions.logMessage("Found messages command", LogLevel_DEBUG, "TestPlugin", 0);
@@ -704,46 +764,80 @@ void Telnet_interface::_parse_buffer() {
             if (command_action == "send_channel") {
                 std::string message;
                 std::getline(line_parser, message);
+                if (!message.empty()) {
+                    message.erase(0, 1); // Delete initial space
+                }
 
                 if (_evaluate_result(_ts3Functions.requestSendChannelTextMsg(_active_server_connection, message.c_str(), _active_server_channel, NULL))) {
+                    _ts3Functions.logMessage("Sent message to channel", LogLevel_DEBUG, "TestPlugin", 0);
                     _queue_write(command + " ok");
                 } else {
+                    _ts3Functions.logMessage("Could not send message to channel", LogLevel_INFO, "TestPlugin", 0);
                     _queue_write(command + " fail");
                 }
 
             } else if (command_action == "send_private") {
-                anyID contact_id;
-                line_parser >> contact_id;
+                std::string contact_id_str;
+                line_parser >> contact_id_str;
 
-                std::string message;
-                std::getline(line_parser, message);
+                if (!contact_id_str.empty()) {
+                    anyID contact_id = atoi(contact_id_str.c_str());
 
-                if (_evaluate_result(_ts3Functions.requestSendPrivateTextMsg(_active_server_connection, message.c_str(), contact_id, NULL))) {
-                    _queue_write(command + " ok");
+                    std::string message;
+                    std::getline(line_parser, message);
+                    if (!message.empty()) {
+                        message.erase(0, 1); // Delete initial space
+                    }
+
+                    if (_evaluate_result(_ts3Functions.requestSendPrivateTextMsg(_active_server_connection, message.c_str(), contact_id, NULL))) {
+                        _ts3Functions.logMessage("Sent private message", LogLevel_DEBUG, "TestPlugin", 0);
+                        _queue_write(command + " ok");
+                    } else {
+                        _ts3Functions.logMessage("Could not send private message to user", LogLevel_INFO, "TestPlugin", 0);
+                        _queue_write(command + " fail");
+                    }
                 } else {
+                    _ts3Functions.logMessage("Could not send private message to user", LogLevel_INFO, "TestPlugin", 0);
                     _queue_write(command + " fail");
                 }
 
-            } else if (command_action == "poke") {
-                anyID contact_id;
-                line_parser >> contact_id;
+            } else if (command_action == "send_poke") {
+                std::string contact_id_str;
+                line_parser >> contact_id_str;
 
-                std::string message;
-                std::getline(line_parser, message);
+                if (!contact_id_str.empty()) {
+                    anyID contact_id = atoi(contact_id_str.c_str());
 
-                if (_evaluate_result(_ts3Functions.requestClientPoke(_active_server_connection, contact_id, message.c_str(), NULL))) {
-                    _queue_write(command + " ok");
+                    std::string message;
+                    std::getline(line_parser, message);
+                    if (!message.empty()) {
+                        message.erase(0, 1); // Delete initial space
+                    }
+
+                    if (_evaluate_result(_ts3Functions.requestClientPoke(_active_server_connection, contact_id, message.c_str(), NULL))) {
+                        _ts3Functions.logMessage("User poked", LogLevel_DEBUG, "TestPlugin", 0);
+                        _queue_write(command + " ok");
+                    } else {
+                        _ts3Functions.logMessage("Could not send poke to user", LogLevel_INFO, "TestPlugin", 0);
+                        _queue_write(command + " fail");
+                    }
                 } else {
+                    _ts3Functions.logMessage("Could not send poke to user", LogLevel_INFO, "TestPlugin", 0);
                     _queue_write(command + " fail");
                 }
-
+            } else {
+                _queue_write(command + " is not a supported action");
             }
 
         } else {
             std::string error_str = "ts3.error: ";
             error_str.append(command_action + ": " + command_category + " is not a supported category");
             _queue_write(error_str);
+
+            _send_usage_to_client();
         }
+    } else {
+        _send_usage_to_client();
     }
     if (!_read_stream.good()) {
         _read_stream.clear();

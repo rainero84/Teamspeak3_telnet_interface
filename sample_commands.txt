@@ -1,0 +1,15 @@
+ts3.servers.connect 192.168.1.39 Default RainerTestUser
+
+ts3.servers.list
+ts3.servers.select 1
+
+ts3.users.list
+
+ts3.channels.list
+ts3.channels.select 4 password
+
+ts3.messaging.send_private 1 Hello from Plugin, Private
+ts3.messaging.send_poke 1 Poke from Plugin
+ts3.messaging.send_channel Hello from Plugin, Channel
+
+ts3.servers.disconnect 1
