@@ -71,6 +71,28 @@ void Telnet_interface::handle_server_disconnected(uint64 server_connection_id) {
 }
 
 //-----------------------------------------------------------------------------
+/// Handles received text message
+void Telnet_interface::handle_private_text_message(uint64 server_connection_id, uint64 fromID, const char* from_name, const char* message) {
+    std::ostringstream client_info_msg;
+    client_info_msg << "ts3.privatemessage\r\n" <<
+        "\tServer: " << server_connection_id << "\r\n" <<
+        "\tFrom: " << from_name << " [" << fromID << "]\r\n" <<
+        message;
+    _queue_write(client_info_msg.str());
+}
+
+//-----------------------------------------------------------------------------
+/// Handles received text message
+void Telnet_interface::handle_channel_text_message(uint64 server_connection_id, uint64 fromID, const char* from_name, const char* message) {
+    std::ostringstream client_info_msg;
+    client_info_msg << "ts3.channelmessage\r\n" <<
+        "\tServer: " << server_connection_id << "\r\n" <<
+        "\tFrom: " << from_name << " [" << fromID << "]\r\n" <<
+        message;
+    _queue_write(client_info_msg.str());
+}
+
+//-----------------------------------------------------------------------------
 /// Constructor
 Telnet_interface::Telnet_interface(const struct TS3Functions funcs) {
 
@@ -587,36 +609,51 @@ void Telnet_interface::_parse_buffer() {
                 uint64 server_id = _active_server_connection;
                 if (!server_id_str.empty()) {
                     server_id = atoi(server_id_str.c_str());
-                }
 
-                uint64* ids;
-                uint64 serverConnectionHandlerID = 0;
-                bool found = false;
-                if (_ts3Functions.getServerConnectionHandlerList(&ids) == ERROR_ok) {
-                    for (int i = 0; ids[i]; i++) {
-                        if (ids[i] == server_id) {
-                            _active_server_connection = server_id;
-                            found = true;
-                            _queue_write(command + " ok");
-                            break;
+                    uint64* ids;
+                    uint64 serverConnectionHandlerID = 0;
+                    bool found = false;
+                    if (_ts3Functions.getServerConnectionHandlerList(&ids) == ERROR_ok) {
+                        for (int i = 0; ids[i]; i++) {
+                            if (ids[i] == server_id) {
+                                _active_server_connection = server_id;
+                                found = true;
+                                _queue_write(command + " ok");
+                                break;
+                            }
                         }
+                        _ts3Functions.freeMemory(ids);
                     }
-                    _ts3Functions.freeMemory(ids);
-                }
 
-                if (!found) {
-                    _queue_write(command + " fail. Unknown connection ID");
+                    if (!found) {
+                        _queue_write(command + " fail. Unknown connection ID.");
+                    }
+                } else {
+                    _queue_write(command + " fail. ID not specified.");
                 }
 
             }
         } else if (command_category == "messaging") {
             _ts3Functions.logMessage("Found messages command", LogLevel_DEBUG, "TestPlugin", 0);
 
-            if (command_action == "send") {
+            if (command_action == "send_channel") {
                 std::string message;
                 std::getline(line_parser, message);
 
                 if (_evaluate_result(_ts3Functions.requestSendChannelTextMsg(_active_server_connection, message.c_str(), 0, NULL))) {
+                    _queue_write(command + " ok");
+                } else {
+                    _queue_write(command + " fail");
+                }
+
+            } else if (command_action == "send_private") {
+                anyID contact_id;
+                line_parser >> contact_id;
+
+                std::string message;
+                std::getline(line_parser, message);
+
+                if (_evaluate_result(_ts3Functions.requestSendPrivateTextMsg(_active_server_connection, message.c_str(), contact_id, NULL))) {
                     _queue_write(command + " ok");
                 } else {
                     _queue_write(command + " fail");

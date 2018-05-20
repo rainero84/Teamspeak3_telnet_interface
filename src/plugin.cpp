@@ -131,7 +131,7 @@ const char* ts3plugin_author() {
 /* Plugin description */
 const char* ts3plugin_description() {
 	/* If you want to use wchar_t, see ts3plugin_name() on how to use */
-    return "This plugin demonstrates the TeamSpeak 3 client plugin architecture.";
+    return "This plugin implements a telnet server with which the client can be controlled";
 }
 
 /* Set TeamSpeak 3 callback functions */
@@ -236,7 +236,7 @@ void ts3plugin_registerPluginID(const char* id) {
 
 /* Plugin command keyword. Return NULL or "" if not used. */
 const char* ts3plugin_commandKeyword() {
-	return "test";
+	return "";
 }
 
 static void print_and_free_bookmarks_list(struct PluginBookmarkList* list)
@@ -863,23 +863,11 @@ int ts3plugin_onTextMessageEvent(uint64 serverConnectionHandlerID, anyID targetM
 		return 0; /* Client will ignore the message anyways, so return value here doesn't matter */
 	}
 
-#if 0
-	{
-		/* Example code: Autoreply to sender */
-		/* Disabled because quite annoying, but should give you some ideas what is possible here */
-		/* Careful, when two clients use this, they will get banned quickly... */
-		anyID myID;
-		if(ts3Functions.getClientID(serverConnectionHandlerID, &myID) != ERROR_ok) {
-			ts3Functions.logMessage("Error querying own client id", LogLevel_ERROR, "Plugin", serverConnectionHandlerID);
-			return 0;
-		}
-		if(fromID != myID) {  /* Don't reply when source is own client */
-			if(ts3Functions.requestSendPrivateTextMsg(serverConnectionHandlerID, "Text message back!", fromID, NULL) != ERROR_ok) {
-				ts3Functions.logMessage("Error requesting send text message", LogLevel_ERROR, "Plugin", serverConnectionHandlerID);
-			}
-		}
-	}
-#endif
+    if (targetMode == TextMessageTarget_CLIENT) {
+        Telnet_interface::get_instance()->handle_private_text_message(serverConnectionHandlerID, fromID, fromName, message);
+    } else if (targetMode == TextMessageTarget_CHANNEL) {
+        Telnet_interface::get_instance()->handle_private_text_message(serverConnectionHandlerID, fromID, fromName, message);
+    }
 
     return 0;  /* 0 = handle normally, 1 = client will ignore the text message */
 }

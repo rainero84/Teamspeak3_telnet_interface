@@ -8,7 +8,6 @@
 #include <list>
 
 #include "ts3_functions.h"
-#include "module-telnet_interface/server_connection.h"
 
 /// States of the interface
 enum Telnet_interface_state {
@@ -45,8 +44,16 @@ public:
     /// Handles connection to the server being established
     void handle_server_connecting(uint64 server_connection_id);
     
-    // Handle connection to server terminated
+    /// Handle connection to server terminated
     void handle_server_disconnected(uint64 server_connection_id);
+
+    //-------------------------------------------------------------------------
+
+    /// Handles received private text message
+    void handle_private_text_message(uint64 server_connection_id, uint64 fromID, const char* from_name, const char* message);
+
+    /// Handles received channel text message
+    void handle_channel_text_message(uint64 server_connection_id, uint64 fromID, const char* from_name, const char* message);
 
 private:
 	// Constrcutor and destructor are private to ensure only a single
