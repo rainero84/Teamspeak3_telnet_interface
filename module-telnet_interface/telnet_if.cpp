@@ -836,7 +836,7 @@ void Telnet_interface::_parse_buffer() {
 
             _send_usage_to_client();
         }
-    } else {
+    } else if (!command_prefix.empty()) {
         _send_usage_to_client();
     }
     if (!_read_stream.good()) {
