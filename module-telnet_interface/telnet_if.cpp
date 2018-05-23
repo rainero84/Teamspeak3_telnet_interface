@@ -1,7 +1,6 @@
 /*
 * Filenme: telnet_if.h
 * Purpose: Implements the Telnet_interface class functions and members
-* Copyright Rainer Oellermann 2018
 */
 #include "telnet_if.h"
 #include "teamspeak/public_errors.h"

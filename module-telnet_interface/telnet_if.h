@@ -1,7 +1,6 @@
 /*
 * Filenme: telnet_if.h
 * Purpose: Defines the Telnet_interface class functions and members
-* Copyright Rainer Oellermann 2018
 */
 #ifndef _TELNET_IF_H_
 #define _TELNET_IF_H_
